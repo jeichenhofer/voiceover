@@ -3,6 +3,7 @@ import numpy as np
 import commpy.channelcoding.convcode as cc
 
 LENGTH_SIZE = 4
+SYNCWORD = 0xFFFFFFFF
 
 
 class ConvolutionCodec:
@@ -36,6 +37,21 @@ class ConvolutionCodec:
         # Create trellis data structure
         return cc.Trellis(memory, g_matrix, feedback, 'rsc')
 
+    @staticmethod
+    def _find_preamble(message: np.ndarray):
+        position = -1
+        skip = 1
+        for i in range(0, len(message)-LENGTH_SIZE, skip):
+            skip = 0
+            for j in range(LENGTH_SIZE-1, -1, -1):
+                if message[i+j] != 0xFF:
+                    skip = j+1
+            if skip == 0:
+                position = i
+                break
+
+        return position
+
     def encode(self, message: np.ndarray) -> np.ndarray:
         """
         Use the configured trellis to perform convolutional encoding on the given message bits.
@@ -43,6 +59,7 @@ class ConvolutionCodec:
         :param message: array of message bits (minimum length determined by trellis)
         :return: array of encoded message bits ready for modulation
         """
+
         # prepend length to message
         message_length = len(message)
         data_type = np.dtype('uint8')
@@ -52,6 +69,13 @@ class ConvolutionCodec:
             dtype=data_type
         )
         message = np.insert(message, 0, length_bytes)
+
+        # prepend syncword to message
+        syncword_bytes = np.frombuffer(
+            SYNCWORD.to_bytes(LENGTH_SIZE, byteorder='big', signed=False),
+            dtype=data_type
+        )
+        message = np.insert(message, 0, syncword_bytes)
 
         # convert bytes to bit array
         bits = np.unpackbits(message, bitorder='big')
@@ -76,9 +100,17 @@ class ConvolutionCodec:
         # return the bytes from the decoded bits
         message = np.packbits(decoded, bitorder='big')
 
+        # align with syncword
+        start = self._find_preamble(message)
+        if start == -1:
+            raise RuntimeError('Aligning failed')
+        # truncate syncword to get rest of message
+        message = message[start+LENGTH_SIZE:]
+
         # detect message length and truncate
         message_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
         if message_length > len(message) - LENGTH_SIZE:
+            logging.info("Message-length tag: {} > {} - 4".format(message_length, len(message)))
             raise RuntimeError('Invalid message-length tag')
         message = message[LENGTH_SIZE:LENGTH_SIZE+message_length]
 
@@ -92,4 +124,3 @@ class ConvolutionCodec:
         return 0.7435  # i have no idea why this works...
         # return self._trellis.k / (self._trellis.n * 0.895)  # i have no idea why this works...
         # return self._trellis.k / self._trellis.n
-
