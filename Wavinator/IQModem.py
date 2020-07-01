@@ -1,6 +1,7 @@
 import logging
 import numpy as np
-
+import matplotlib.pyplot as plt
+import math
 
 class IQModem:
     def __init__(self, const_size: int = 4, f_symbol: int = 128, f_sample: int = int(8e3), f_carrier: int = int(1e3)):
@@ -102,6 +103,24 @@ class IQModem:
         :param rx_wave: sampled analog IQ modulated waveform
         :return: message bits extracted from the modulated signal
         """
+
+        # Remove any zeroes at front
+        for i in range(len(rx_wave)):
+            if rx_wave[i] != 0:
+                rx_wave = rx_wave[i:]
+                break
+
+        # Detect start of signal by looking for first pure tone symbol
+        start = self.find_first_symbol(rx_wave)
+
+        import wavio
+        reference_audio = wavio.read("data/sentence_signal_2020-06-27T06_20_48.716302.wav")
+        reference_audio = reference_audio.data.reshape((reference_audio.data.shape[0],))
+        reference = self.find_first_symbol(reference_audio)
+
+        rx_wave = rx_wave[(start - reference):]
+        wavio.write('data/rx_wave.wav', rx_wave, self.sample_rate, sampwidth=2)
+
         # extract the quadrature components
         rx_wave_t = np.arange(len(rx_wave)) / self._f_sample
         i_quad = rx_wave * np.cos(self._w_carrier * rx_wave_t)
@@ -112,19 +131,31 @@ class IQModem:
         i_quad = lfilter(self._lp_fir, 1, i_quad)
         q_quad = lfilter(self._lp_fir, 1, q_quad)
 
+        wavio.write('data/i_quad.wav', i_quad, self.sample_rate, sampwidth=2)
+        wavio.write('data/q_quad.wav', q_quad, self.sample_rate, sampwidth=2)
+
         # combine the signals back into complex quadrature representation
         recovered = i_quad + 1.j * q_quad
 
         # apply the second rrc filter for full raised cosine filter
         recovered_signal = np.convolve(recovered, self._rrc_fir)
 
+        wavio.write('data/recovered_signal.wav', recovered_signal, self.sample_rate, sampwidth=2)
+
         # discard prepended delay samples from filtering and sample remaining signal to recover original symbols
         recovered_symbols = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
+
+        wavio.write('data/recovered_symbols.wav', recovered_signal, self.sample_rate, sampwidth=2)
 
         # demodulate the symbols into bits modulating the signal
         bits = self._modem.demodulate(recovered_symbols, demod_type='hard')
         logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
         return bits
+
+    def find_first_symbol(self, rx_wave: np.ndarray):
+        for i in range(len(rx_wave)):
+            if rx_wave[i] > (self._f_sample * math.sqrt(2)):
+                return i
 
     @property
     def bitrate(self):
