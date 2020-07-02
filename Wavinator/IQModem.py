@@ -110,16 +110,53 @@ class IQModem:
                 rx_wave = rx_wave[i:]
                 break
 
+        # extract the quadrature components
+        rx_wave_t = np.arange(len(rx_wave)) / self._f_sample
+        i_quad = rx_wave * np.cos(self._w_carrier * rx_wave_t)
+        q_quad = rx_wave * np.sin(self._w_carrier * rx_wave_t) * (-1)
+
+        # filter the quadrature signals
+        from scipy.signal import lfilter
+        i_quad = lfilter(self._lp_fir, 1, i_quad)
+        q_quad = lfilter(self._lp_fir, 1, q_quad)
+
+        # combine the signals back into complex quadrature representation
+        recovered = i_quad + 1.j * q_quad
+
+        # apply the second rrc filter for full raised cosine filter
+        recovered_signal = np.convolve(recovered, self._rrc_fir)
+
+        # discard prepended delay samples from filtering and sample remaining signal to recover original symbols
+        recovered_symbols = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
+
+        # demodulate the symbols into bits modulating the signal
+        bits = self._modem.demodulate(recovered_symbols, demod_type='hard')
+        logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
+        return bits
+
+    def demodulate(self, rx_wave: np.ndarray, filename) -> np.ndarray:
+        """
+        Extract the complex QAM symbols modulated into the given rx_wave. Demodulates the IQ modulation implemented by
+        the modulate method above.
+
+        Waveform -> IQ Extraction -> Image Reject Filter -> RRC Filter -> Downsample -> Demodulate QPSK -> coded bits
+
+        :param rx_wave: sampled analog IQ modulated waveform
+        :param filename: reference audio file to align to
+        :return: message bits extracted from the modulated signal
+        """
+
+        # Remove any zeroes at front
+        for i in range(len(rx_wave)):
+            if rx_wave[i] != 0:
+                rx_wave = rx_wave[i:]
+                break
+
         # Detect start of signal by looking for first pure tone symbol
         start = self.find_first_symbol(rx_wave)
 
-        import wavio
-        reference_audio = wavio.read("data/sentence_signal_2020-06-27T06_20_48.716302.wav")
-        reference_audio = reference_audio.data.reshape((reference_audio.data.shape[0],))
-        reference = self.find_first_symbol(reference_audio)
-
+        reference = self.reference_start(filename)
         rx_wave = rx_wave[(start - reference):]
-        wavio.write('data/rx_wave.wav', rx_wave, self.sample_rate, sampwidth=2)
 
         # extract the quadrature components
         rx_wave_t = np.arange(len(rx_wave)) / self._f_sample
@@ -131,21 +168,14 @@ class IQModem:
         i_quad = lfilter(self._lp_fir, 1, i_quad)
         q_quad = lfilter(self._lp_fir, 1, q_quad)
 
-        wavio.write('data/i_quad.wav', i_quad, self.sample_rate, sampwidth=2)
-        wavio.write('data/q_quad.wav', q_quad, self.sample_rate, sampwidth=2)
-
         # combine the signals back into complex quadrature representation
         recovered = i_quad + 1.j * q_quad
 
         # apply the second rrc filter for full raised cosine filter
         recovered_signal = np.convolve(recovered, self._rrc_fir)
 
-        wavio.write('data/recovered_signal.wav', recovered_signal, self.sample_rate, sampwidth=2)
-
         # discard prepended delay samples from filtering and sample remaining signal to recover original symbols
         recovered_symbols = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
-
-        wavio.write('data/recovered_symbols.wav', recovered_signal, self.sample_rate, sampwidth=2)
 
         # demodulate the symbols into bits modulating the signal
         bits = self._modem.demodulate(recovered_symbols, demod_type='hard')
@@ -156,6 +186,12 @@ class IQModem:
         for i in range(len(rx_wave)):
             if rx_wave[i] > (self._f_sample * math.sqrt(2)):
                 return i
+
+    def reference_start(self, filename):
+        import wavio
+        reference_audio = wavio.read(filename)
+        reference_audio = reference_audio.data.reshape((reference_audio.data.shape[0],))
+        return self.find_first_symbol(reference_audio)
 
     @property
     def bitrate(self):
