@@ -27,6 +27,10 @@ class Wavinator:
         coded = self._modem.demodulate(rx_wave)
         return self._codec.decode(coded)
 
+    def dewavinate(self, rx_wave: np.ndarray, filename):
+        coded = self._modem.demodulate(rx_wave, filename)
+        return self._codec.decode(coded)
+
     @property
     def bit_rate(self):
         return self._codec.coding_rate * self._modem.bitrate
