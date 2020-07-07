@@ -27,9 +27,15 @@ class Wavinator:
         coded = self._modem.demodulate(rx_wave)
         return self._codec.decode(coded)
 
-    def dewavinate(self, rx_wave: np.ndarray, filename):
-        coded = self._modem.demodulate(rx_wave, filename)
-        return self._codec.decode(coded)
+    @staticmethod
+    def truncate(rx_wave: np.ndarray, threshold):
+        # Remove any zeroes at front
+        for i in range(len(rx_wave)):
+            if abs(rx_wave[i]) > threshold:
+                rx_wave = rx_wave[i:]
+                break
+
+        return rx_wave
 
     @property
     def bit_rate(self):
