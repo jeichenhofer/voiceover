@@ -1,7 +1,6 @@
 import logging
 import numpy as np
-import matplotlib.pyplot as plt
-import math
+
 
 class IQModem:
     def __init__(self, const_size: int = 4, f_symbol: int = 128, f_sample: int = int(8e3), f_carrier: int = int(1e3)):
@@ -104,12 +103,6 @@ class IQModem:
         :return: message bits extracted from the modulated signal
         """
 
-        # Remove any zeroes at front
-        for i in range(len(rx_wave)):
-            if rx_wave[i] != 0:
-                rx_wave = rx_wave[i:]
-                break
-
         # extract the quadrature components
         rx_wave_t = np.arange(len(rx_wave)) / self._f_sample
         i_quad = rx_wave * np.cos(self._w_carrier * rx_wave_t)
@@ -134,53 +127,17 @@ class IQModem:
         logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
         return bits
 
-    def demodulate(self, rx_wave: np.ndarray, filename) -> np.ndarray:
-        """
-        Extract the complex QAM symbols modulated into the given rx_wave. Demodulates the IQ modulation implemented by
-        the modulate method above.
+    @property
+    def bitrate(self):
+        return self._modem.num_bits_symbol * self._f_symbol
 
-        Waveform -> IQ Extraction -> Image Reject Filter -> RRC Filter -> Downsample -> Demodulate QPSK -> coded bits
+    @property
+    def sample_rate(self):
+        return self._f_sample
 
-        :param rx_wave: sampled analog IQ modulated waveform
-        :param filename: reference audio file to align to
-        :return: message bits extracted from the modulated signal
-        """
 
-        # Remove any zeroes at front
-        for i in range(len(rx_wave)):
-            if rx_wave[i] != 0:
-                rx_wave = rx_wave[i:]
-                break
-
-        # Detect start of signal by looking for first pure tone symbol
-        start = self.find_first_symbol(rx_wave)
-
-        reference = self.reference_start(filename)
-        rx_wave = rx_wave[(start - reference):]
-
-        # extract the quadrature components
-        rx_wave_t = np.arange(len(rx_wave)) / self._f_sample
-        i_quad = rx_wave * np.cos(self._w_carrier * rx_wave_t)
-        q_quad = rx_wave * np.sin(self._w_carrier * rx_wave_t) * (-1)
-
-        # filter the quadrature signals
-        from scipy.signal import lfilter
-        i_quad = lfilter(self._lp_fir, 1, i_quad)
-        q_quad = lfilter(self._lp_fir, 1, q_quad)
-
-        # combine the signals back into complex quadrature representation
-        recovered = i_quad + 1.j * q_quad
-
-        # apply the second rrc filter for full raised cosine filter
-        recovered_signal = np.convolve(recovered, self._rrc_fir)
-
-        # discard prepended delay samples from filtering and sample remaining signal to recover original symbols
-        recovered_symbols = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
-
-        # demodulate the symbols into bits modulating the signal
-        bits = self._modem.demodulate(recovered_symbols, demod_type='hard')
-        logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
-        return bits
+'''
+Alternate ways to find start of waveform
 
     def find_first_symbol(self, rx_wave: np.ndarray):
         for i in range(len(rx_wave)):
@@ -193,10 +150,4 @@ class IQModem:
         reference_audio = reference_audio.data.reshape((reference_audio.data.shape[0],))
         return self.find_first_symbol(reference_audio)
 
-    @property
-    def bitrate(self):
-        return self._modem.num_bits_symbol * self._f_symbol
-
-    @property
-    def sample_rate(self):
-        return self._f_sample
+'''
