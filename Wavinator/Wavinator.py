@@ -4,10 +4,10 @@ import numpy as np
 class Wavinator:
 
     def __init__(self, f_carrier=None):
-        from Wavinator.ConvolutionCodec import ConvolutionCodec
+        from Wavinator.TurboCodec import TurboCodec
         from Wavinator.IQModem import IQModem
 
-        self._codec = ConvolutionCodec()
+        self._codec = TurboCodec()
         if f_carrier is not None:
             self._modem = IQModem(f_carrier=f_carrier)
         else:

@@ -1,12 +1,14 @@
 import logging
 import numpy as np
 import commpy.channelcoding.convcode as cc
+import commpy.channelcoding as cx
 
-LENGTH_SIZE = 4
-SYNCWORD = 0xFFFFFFFF
+LENGTH_SIZE = 2
+INTERLEAVER_LEN = 15
+SEED = 0
 
 
-class ConvolutionCodec:
+class TurboCodec:
     def __init__(self):
         """
         Initialize the codec scheme with trellis structure:
@@ -15,13 +17,14 @@ class ConvolutionCodec:
         """
         # instantiate trellis object
         self._trellis = self._make_trellis()
+        self._interleaver = cx.RandInterlv(INTERLEAVER_LEN, SEED)
 
-        logging.info('Instantiated ConvolutionCodec with default trellis r = 2/3')
+        logging.info('Instantiated TurboCodec with default trellis r = 2/3')
 
     @staticmethod
     def _make_trellis() -> cc.Trellis:
         """
-        Convolutional Code:
+        Convlutional Code:
             G(D) = [[1, 0, 0], [0, 1, 1+D]]
             F(D) = [[D, D], [1+D, 1]]
 
@@ -36,21 +39,6 @@ class ConvolutionCodec:
 
         # Create trellis data structure
         return cc.Trellis(memory, g_matrix, feedback, 'rsc')
-
-    @staticmethod
-    def _find_preamble(message: np.ndarray):
-        position = -1
-        skip = 1
-        for i in range(0, len(message)-LENGTH_SIZE, skip):
-            skip = 0
-            for j in range(LENGTH_SIZE-1, -1, -1):
-                if message[i+j] != 0xFF:
-                    skip = j+1
-            if skip == 0:
-                position = i
-                break
-
-        return position
 
     def encode(self, message: np.ndarray) -> np.ndarray:
         """
@@ -70,42 +58,29 @@ class ConvolutionCodec:
         )
         message = np.insert(message, 0, length_bytes)
 
-        # prepend syncword to message
-        syncword_bytes = np.frombuffer(
-            SYNCWORD.to_bytes(LENGTH_SIZE, byteorder='big', signed=False),
-            dtype=data_type
-        )
-        message = np.insert(message, 0, syncword_bytes)
-
         # convert bytes to bit array
         bits = np.unpackbits(message, bitorder='big')
 
-        # perform the convolution encoding
-        encoded = cc.conv_encode(bits, self._trellis, termination='cont')
-        logging.info('Encoded {}-byte message into {}-bit convolution coded parity message'.format(
-            message_length, len(encoded))
+        # perform the turbo encoding
+        encoded_streams = cx.turbo_encode(bits, self._trellis, self._trellis, self._interleaver)
+        logging.info('Encoded {}-byte message into {}-bit turbo coded systematic output '
+                     'with {}-bit and {}-bit parity streams'.format(
+                            message_length, len(encoded_streams[0]), len(encoded_streams[1]), len(encoded_streams[2]))
         )
-        return encoded
+        return encoded_streams
 
-    def decode(self, encoded: np.ndarray) -> np.ndarray:
+    def decode(self, encoded_streams) -> np.ndarray:
         """
         Use the configured trellis to perform vitirbi decoding algorithm on the received encoded bits.
 
-        :param encoded: array of bits encoded then received
+        :param encoded_streams: array of bits encoded then received
         :return: array of decoded message bits that were originally encoded (with probability varying by signal noise)
         """
         # decode the probable bits from the encoded string
-        decoded = cc.viterbi_decode(encoded, self._trellis, decoding_type='hard')
+        decoded = cx.turbo_decode(encoded_streams[0], encoded_streams[1], encoded_streams[2], self._trellis)
 
         # return the bytes from the decoded bits
         message = np.packbits(decoded, bitorder='big')
-
-        # align with syncword
-        start = self._find_preamble(message)
-        if start == -1:
-            raise RuntimeError('Aligning failed')
-        # truncate syncword to get rest of message
-        message = message[start+LENGTH_SIZE:]
 
         # detect message length and truncate
         message_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
@@ -114,8 +89,8 @@ class ConvolutionCodec:
             raise RuntimeError('Invalid message-length tag')
         message = message[LENGTH_SIZE:LENGTH_SIZE+message_length]
 
-        logging.info('Decoded {} convolution coded parity bits into {}-byte message'.format(
-            len(encoded), message_length)
+        logging.info('Decoded {} turbo coded bit stream with {} and {} bit parity streams into {}-byte message'.format(
+            len(encoded_streams[0]), len(encoded_streams[1]), len(encoded_streams[2]), message_length)
         )
         return message
 
