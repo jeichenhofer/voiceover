@@ -80,7 +80,6 @@ class ConvolutionCodec:
         # detect message length and truncate
         message_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
         if message_length > len(message) - LENGTH_SIZE:
-            logging.info("Message-length tag: {} > {} - 4".format(message_length, len(message)))
             raise RuntimeError('Invalid message-length tag')
         message = message[LENGTH_SIZE:LENGTH_SIZE+message_length]
 
