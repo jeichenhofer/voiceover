@@ -3,13 +3,17 @@ import numpy as np
 
 class Wavinator:
 
-    def __init__(self, f_carrier=None):
+    def __init__(self, f_carrier=None, f_symbol=None):
         from Wavinator.ConvolutionCodec import ConvolutionCodec
         from Wavinator.IQModem import IQModem
 
         self._codec = ConvolutionCodec()
-        if f_carrier is not None:
+        if f_carrier is not None and f_symbol is not None:
+            self._modem = IQModem(f_carrier=f_carrier, f_symbol=f_symbol)
+        elif f_carrier is not None and f_symbol is None:
             self._modem = IQModem(f_carrier=f_carrier)
+        elif f_carrier is None and f_symbol is not None:
+            self._modem = IQModem(f_symbol=f_symbol)
         else:
             self._modem = IQModem()
 
@@ -26,6 +30,9 @@ class Wavinator:
     def dewavinate(self, rx_wave: np.ndarray):
         coded = self._modem.demodulate(rx_wave)
         return self._codec.decode(coded)
+
+    def dewavinate_dilated_signal(self, rx_wave: np.ndarray):
+        return self._modem.demodulate_dilated_signal(rx_wave)
 
     @staticmethod
     def truncate(rx_wave: np.ndarray, threshold):

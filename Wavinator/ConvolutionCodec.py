@@ -76,7 +76,7 @@ class ConvolutionCodec:
 
         # return the bytes from the decoded bits
         message = np.packbits(decoded, bitorder='big')
-
+        print(message)
         # detect message length and truncate
         message_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
         if message_length > len(message) - LENGTH_SIZE:
@@ -87,6 +87,15 @@ class ConvolutionCodec:
             len(encoded), message_length)
         )
         return message
+
+    def decode_segment(self, segment: np.ndarray) -> np.ndarray:
+        # decode the probable bits from the encoded string
+        decoded = cc.viterbi_decode(segment, self._trellis, decoding_type='hard')
+
+        logging.info('Decoded {} convolution coded parity bits into {}-byte message'.format(
+            len(segment), len(decoded))
+        )
+        return decoded
 
     @property
     def coding_rate(self):
