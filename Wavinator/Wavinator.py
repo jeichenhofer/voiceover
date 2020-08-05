@@ -31,8 +31,8 @@ class Wavinator:
         coded = self._modem.demodulate(rx_wave)
         return self._codec.decode(coded)
 
-    def dewavinate_dilated_signal(self, rx_wave: np.ndarray):
-        return self._modem.demodulate_dilated_signal(rx_wave)
+    def dewavinate_dilated_signal(self, rx_wave: np.ndarray, num_symbols):
+        return self._modem.demodulate_dilated_signal(rx_wave, num_symbols)
 
     @staticmethod
     def truncate(rx_wave: np.ndarray, threshold):

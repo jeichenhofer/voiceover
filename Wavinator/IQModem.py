@@ -1,6 +1,5 @@
 import logging
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 class IQModem:
@@ -106,28 +105,6 @@ class IQModem:
         :return: message bits extracted from the modulated signal
         """
 
-        # y = np.fft.fft(rx_wave)
-        # plt.plot(np.abs(y[0:len(y)//2]))
-        # plt.show()
-        #num_symbols = 88
-        #windowsize = num_symbols * self._upsmple_factor
-        windowsize = 1000
-
-
-
-        '''for i in range(0, len(rx_wave), windowsize):
-            window = rx_wave[i:i+windowsize]
-            y = np.fft.fft(window)
-
-            #plt.plot(self._f_sample * np.abs(y[0:windowsize//2]))
-            #plt.show()
-            freqs = np.fft.fftfreq(windowsize)
-            peak = np.argmax(y) # find index of peak
-            freq = freqs[peak]
-            freq_hz = abs(freq * self._f_sample)
-            print(freq_hz)
-'''
-
         # extract the quadrature components
         rx_wave_t = np.arange(len(rx_wave)) / self._f_sample
         i_quad = rx_wave * np.cos(self._w_carrier * rx_wave_t)
@@ -144,8 +121,6 @@ class IQModem:
         # apply the second rrc filter for full raised cosine filter
         recovered_signal = np.convolve(recovered, self._rrc_fir)
 
-        #print(recovered_signal)
-
         # discard prepended delay samples from filtering and sample remaining signal to recover original symbols
         recovered_symbols = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
 
@@ -154,13 +129,8 @@ class IQModem:
         logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
         return bits
 
-    def demodulate_dilated_signal(self, rx_wave: np.ndarray) -> np.ndarray:
-        # y = np.fft.fft(rx_wave)
-        # plt.plot(np.abs(y[0:len(y)//2]))
-        # plt.show()
-        num_symbols = 48
+    def demodulate_dilated_signal(self, rx_wave: np.ndarray, num_symbols) -> np.ndarray:
         windowsize = num_symbols * self._upsmple_factor
-        #windowsize = 6000
         expected_freq = 1000
         error = 100
         length_size = 2
@@ -170,9 +140,6 @@ class IQModem:
         for i in range(0, len(rx_wave), windowsize):
             window = rx_wave[i:i+windowsize]
             y = np.fft.fft(window)
-
-            #plt.plot(self._f_sample * np.abs(y[0:windowsize//2]))
-            #plt.show()
             freqs = np.fft.fftfreq(windowsize)
             peak = np.argmax(y)  # find index of peak
             freq = freqs[peak]
@@ -180,23 +147,19 @@ class IQModem:
             baud = 128
 
             # brute forcing baud rate loop
-            # TODO: replace try-except with brute force loop since decode doesn't throw exception
             data_rx = None
             while data_rx is None:
-                try:
-                    data_rx = self.demodulate_segment(window)
-                except RuntimeError:
-                    if freq_hz < expected_freq - error:
-                        baud -= 1
-                    elif freq_hz > expected_freq + error:
-                        baud += 1
-                    self.__init__(f_carrier=freq_hz, f_symbol=baud)
-                    pass
+                data_rx = self.demodulate_segment(window)
+                if freq_hz < expected_freq - error:
+                    baud -= 1
+                elif freq_hz > expected_freq + error:
+                    baud += 1
+                self.__init__(f_carrier=freq_hz, f_symbol=baud)
+                pass
             bits = self._codec.decode_segment(data_rx)
             message = np.concatenate([message, bits])
 
         message = np.packbits(message, bitorder='big')
-
         # truncate message-length tag
         message_length = int.from_bytes(message[0:length_size], byteorder='big', signed=False)
         if message_length > len(message) - length_size:
@@ -206,7 +169,6 @@ class IQModem:
         return message
 
     def demodulate_segment(self, segment: np.ndarray) -> np.ndarray:
-
         # extract the quadrature components
         rx_wave_t = np.arange(len(segment)) / self._f_sample
         i_quad = segment * np.cos(self._w_carrier * rx_wave_t)
@@ -224,11 +186,10 @@ class IQModem:
         recovered_signal = np.convolve(recovered, self._rrc_fir)
 
         # discard prepended delay samples from filtering and sample remaining signal to recover original symbols
-        # TODO: do segments get prepended delay samples from filtering?
-        recovered_symbols = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
+        recovered_signal = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
 
         # demodulate the symbols into bits modulating the signal
-        bits = self._modem.demodulate(recovered_symbols, demod_type='hard')
+        bits = self._modem.demodulate(recovered_signal, demod_type='hard')
         logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(segment), len(bits)))
         return bits
 
@@ -239,20 +200,3 @@ class IQModem:
     @property
     def sample_rate(self):
         return self._f_sample
-
-
-'''
-Alternate ways to find start of waveform
-
-    def find_first_symbol(self, rx_wave: np.ndarray):
-        for i in range(len(rx_wave)):
-            if rx_wave[i] > (self._f_sample * math.sqrt(2)):
-                return i
-
-    def reference_start(self, filename):
-        import wavio
-        reference_audio = wavio.read(filename)
-        reference_audio = reference_audio.data.reshape((reference_audio.data.shape[0],))
-        return self.find_first_symbol(reference_audio)
-
-'''
