@@ -1,0 +1,5 @@
+selenium
+chromedriver-binary==76.0.3809.126.0
+sounddevice
+soundfile
+
