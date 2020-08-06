@@ -21,10 +21,17 @@ class Wavinator:
         # convert bytes to ndarray of uint8 (unsigned byte array)
         data_type = np.dtype('uint8')
         data_type = data_type.newbyteorder('>')
-        byte_array = np.frombuffer(message, dtype=data_type)
+        message_bytes = np.frombuffer(message, dtype=data_type)
+
+        frame_len = 2
+        coded_bytes = np.array([], dtype=data_type)
+        for i in range(0, len(message_bytes), frame_len):
+            frame = self._codec.encode_frame(message_bytes[i:i+frame_len])
+            coded_bytes = np.concatenate([coded_bytes, frame])
+
+        coded = self._codec.encode(coded_bytes)
 
         # encode with convolution coder and modulate into waveform
-        coded = self._codec.encode(byte_array)
         return self._modem.modulate(coded)
 
     def dewavinate(self, rx_wave: np.ndarray):
@@ -43,6 +50,10 @@ class Wavinator:
                 break
 
         return rx_wave
+
+    @staticmethod
+    def divide_frames(byte_array: np.ndarray, num_frames):
+        raise NotImplementedError()
 
     @property
     def bit_rate(self):

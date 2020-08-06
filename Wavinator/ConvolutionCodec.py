@@ -43,6 +43,18 @@ class ConvolutionCodec:
         :param message: array of message bits (minimum length determined by trellis)
         :return: array of encoded message bits ready for modulation
         """
+
+        # convert bytes to bit array
+        bits = np.unpackbits(message, bitorder='big')
+
+        # perform the convolution encoding
+        encoded = cc.conv_encode(bits, self._trellis, termination='cont')
+        logging.info('Encoded {}-byte message into {}-bit convolution coded parity message'.format(
+            len(message), len(encoded))
+        )
+        return encoded
+
+    def encode_frame(self, message: np.ndarray):
         # setup data type
         data_type = np.dtype('uint8')
         data_type = data_type.newbyteorder('>')
@@ -72,15 +84,7 @@ class ConvolutionCodec:
         checksum_bytes = checksum.to_bytes(LENGTH_SIZE, byteorder='big', signed=False)
         frame_buffer[LENGTH_SIZE:(LENGTH_SIZE + CHECKSUM_SIZE)] = np.frombuffer(checksum_bytes, dtype=data_type)
 
-        # convert bytes to bit array
-        bits = np.unpackbits(frame_buffer, bitorder='big')
-
-        # perform the convolution encoding
-        encoded = cc.conv_encode(bits, self._trellis, termination='cont')
-        logging.info('Encoded {}-byte message into {}-bit convolution coded parity message'.format(
-            message_length, len(encoded))
-        )
-        return encoded
+        return frame_buffer
 
     def decode(self, encoded: np.ndarray) -> np.ndarray:
         """
@@ -93,31 +97,45 @@ class ConvolutionCodec:
         decoded = cc.viterbi_decode(encoded, self._trellis, decoding_type='hard')
 
         # return the bytes from the decoded bits
-        message = np.packbits(decoded, bitorder='big')
-        # detect message length and truncate
-        message_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
-        if message_length > len(message) - LENGTH_SIZE:
-            raise RuntimeError('Invalid message-length tag')
-        message_end = message_length + LENGTH_SIZE + CHECKSUM_SIZE
-        if message_length % 2 != 0:
-            message_end += 1
-        message = message[:message_end]
+        message_bytes = np.packbits(decoded, bitorder='big')
 
-        if self._compute_checksum(message) != 0:
+        # setup data type
+        data_type = np.dtype('uint8')
+        data_type = data_type.newbyteorder('>')
+        message = np.array([], dtype=data_type)
+        while len(message_bytes) > LENGTH_SIZE + CHECKSUM_SIZE:
+            frame, message_bytes = self.decode_frame(message_bytes)
+            print(frame)
+            message = np.concatenate([message, frame])
+
+        logging.info('Decoded {} convolution coded parity bits into {}-byte message'.format(
+            len(encoded), len(message))
+        )
+        return message
+
+    def decode_frame(self, message: np.ndarray):
+        # detect frame length and truncate
+        frame_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
+        if frame_length > len(message) - LENGTH_SIZE:
+            raise RuntimeError('Invalid message-length tag')
+        frame_end = frame_length + LENGTH_SIZE + CHECKSUM_SIZE
+        if frame_length % 2 != 0:
+            frame_end += 1
+        frame = message[:frame_end]
+
+        if self._compute_checksum(frame) != 0:
             raise ValueError('message checksum invalid')
 
         # compute start of message
-        message_start = LENGTH_SIZE + CHECKSUM_SIZE
-        if message_length % 2 != 0:
-            message_start += 1
+        frame_start = LENGTH_SIZE + CHECKSUM_SIZE
+        if frame_length % 2 != 0:
+            frame_start += 1
 
         # extract message bytes
-        message = message[message_start:]
+        frame = frame[frame_start:]
+        message = message[frame_end:]
 
-        logging.info('Decoded {} convolution coded parity bits into {}-byte message'.format(
-            len(encoded), message_length)
-        )
-        return message
+        return frame, message
 
     def decode_segment(self, segment: np.ndarray) -> np.ndarray:
         # decode the probable bits from the encoded string
