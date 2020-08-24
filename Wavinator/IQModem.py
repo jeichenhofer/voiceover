@@ -126,6 +126,9 @@ class IQModem:
 
         # demodulate the symbols into bits modulating the signal
         bits = self._modem.demodulate(recovered_symbols, demod_type='hard')
+        # truncate to nearest length that is a multiple of 24
+        if len(bits) % 24 != 0:
+            bits = bits[:(len(bits) // 24) * 24]
         logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
         return bits
 

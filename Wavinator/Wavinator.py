@@ -3,17 +3,13 @@ import numpy as np
 
 class Wavinator:
 
-    def __init__(self, f_carrier=None, f_symbol=None):
+    def __init__(self, f_carrier=None):
         from Wavinator.ConvolutionCodec import ConvolutionCodec
         from Wavinator.IQModem import IQModem
 
         self._codec = ConvolutionCodec()
-        if f_carrier is not None and f_symbol is not None:
-            self._modem = IQModem(f_carrier=f_carrier, f_symbol=f_symbol)
-        elif f_carrier is not None and f_symbol is None:
+        if f_carrier is not None:
             self._modem = IQModem(f_carrier=f_carrier)
-        elif f_carrier is None and f_symbol is not None:
-            self._modem = IQModem(f_symbol=f_symbol)
         else:
             self._modem = IQModem()
 
@@ -23,20 +19,13 @@ class Wavinator:
         data_type = data_type.newbyteorder('>')
         message_bytes = np.frombuffer(message, dtype=data_type)
 
-        frame_len = 2
-        coded_bytes = np.array([], dtype=data_type)
-        for i in range(0, len(message_bytes), frame_len):
-            frame = self._codec.encode_frame(message_bytes[i:i+frame_len])
-            coded_bytes = np.concatenate([coded_bytes, frame])
-
-        coded = self._codec.encode(coded_bytes)
-
         # encode with convolution coder and modulate into waveform
+        coded = self._codec.encode(message_bytes)
         return self._modem.modulate(coded)
 
     def dewavinate(self, rx_wave: np.ndarray):
         coded = self._modem.demodulate(rx_wave)
-        return self._codec.decode(coded)
+        return self._codec.decode(coded[:72])
 
     def dewavinate_dilated_signal(self, rx_wave: np.ndarray, num_symbols):
         return self._modem.demodulate_dilated_signal(rx_wave, num_symbols)
@@ -50,10 +39,6 @@ class Wavinator:
                 break
 
         return rx_wave
-
-    @staticmethod
-    def divide_frames(byte_array: np.ndarray, num_frames):
-        raise NotImplementedError()
 
     @property
     def bit_rate(self):
