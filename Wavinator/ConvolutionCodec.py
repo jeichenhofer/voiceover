@@ -4,6 +4,7 @@ import commpy.channelcoding.convcode as cc
 
 LENGTH_SIZE = 2
 CHECKSUM_SIZE = 2
+NUM_SIZE = 2
 
 class ConvolutionCodec:
     def __init__(self):
@@ -36,7 +37,7 @@ class ConvolutionCodec:
         # Create trellis data structure
         return cc.Trellis(memory, g_matrix, feedback, 'rsc')
 
-    def encode(self, message: np.ndarray) -> np.ndarray:
+    def encode(self, message: np.ndarray, frame_number) -> np.ndarray:
         """
         Use the configured trellis to perform convolutional encoding on the given message bits.
         :param message: array of message bits (minimum length determined by trellis)
@@ -47,8 +48,8 @@ class ConvolutionCodec:
         data_type = data_type.newbyteorder('>')
 
         # create frame buffer
-        frame_len = LENGTH_SIZE + CHECKSUM_SIZE + len(message)
-        message_start = LENGTH_SIZE + CHECKSUM_SIZE
+        frame_len = LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE + len(message)
+        message_start = LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE
         if frame_len % 2 != 0:
             frame_len += 1
             message_start += 1
@@ -65,11 +66,15 @@ class ConvolutionCodec:
         )
         frame_buffer[:LENGTH_SIZE] = np.frombuffer(length_bytes, dtype=data_type)
 
+        framenum_bytes = frame_number.to_bytes(NUM_SIZE, byteorder='big', signed=False)
+        frame_buffer[LENGTH_SIZE:(LENGTH_SIZE + NUM_SIZE)] = np.frombuffer(framenum_bytes, dtype=data_type)
+
         # compute checksum value
         checksum = self._compute_checksum(frame_buffer)
         # set checksum in buffer
         checksum_bytes = checksum.to_bytes(LENGTH_SIZE, byteorder='big', signed=False)
-        frame_buffer[LENGTH_SIZE:(LENGTH_SIZE + CHECKSUM_SIZE)] = np.frombuffer(checksum_bytes, dtype=data_type)
+        frame_buffer[LENGTH_SIZE + NUM_SIZE:(LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE)] = np.frombuffer(checksum_bytes,
+                                                                                                      dtype=data_type)
 
         # convert bytes to bit array
         bits = np.unpackbits(frame_buffer, bitorder='big')
@@ -81,7 +86,7 @@ class ConvolutionCodec:
         )
         return encoded
 
-    def decode(self, encoded: np.ndarray) -> np.ndarray:
+    def decode(self, encoded: np.ndarray):
         """
         Use the configured trellis to perform vitirbi decoding algorithm on the received encoded bits.
         :param encoded: array of bits encoded then received
@@ -93,12 +98,11 @@ class ConvolutionCodec:
 
         # return the bytes from the decoded bits
         message = np.packbits(decoded, bitorder='big')
-
         # detect message length and truncate
         message_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
         if message_length > len(message) - LENGTH_SIZE:
             raise RuntimeError('Invalid message-length tag')
-        message_end = message_length + LENGTH_SIZE + CHECKSUM_SIZE
+        message_end = message_length + LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE
         if message_length % 2 != 0:
             message_end += 1
         message = message[:message_end]
@@ -106,8 +110,10 @@ class ConvolutionCodec:
         if self._compute_checksum(message) != 0:
             raise ValueError('message checksum invalid')
 
+        frame_num = int.from_bytes(message[LENGTH_SIZE:(LENGTH_SIZE + NUM_SIZE)], byteorder='big', signed=False)
+
         # compute start of message
-        message_start = LENGTH_SIZE + CHECKSUM_SIZE
+        message_start = LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE
         if message_length % 2 != 0:
             message_start += 1
 
@@ -117,7 +123,7 @@ class ConvolutionCodec:
         logging.info('Decoded {} convolution coded parity bits into {}-byte message'.format(
             len(encoded), message_length)
         )
-        return message
+        return message, frame_num
 
     def decode_segment(self, segment: np.ndarray) -> np.ndarray:
         # decode the probable bits from the encoded string
