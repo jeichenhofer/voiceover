@@ -6,6 +6,7 @@ LENGTH_SIZE = 2
 CHECKSUM_SIZE = 2
 NUM_SIZE = 2
 
+
 class ConvolutionCodec:
     def __init__(self):
         """
@@ -124,15 +125,6 @@ class ConvolutionCodec:
             len(encoded), message_length)
         )
         return message, frame_num
-
-    def decode_segment(self, segment: np.ndarray) -> np.ndarray:
-        # decode the probable bits from the encoded string
-        decoded = cc.viterbi_decode(segment, self._trellis, decoding_type='hard')
-
-        logging.info('Decoded {} convolution coded parity bits into {}-byte message'.format(
-            len(segment), len(decoded))
-        )
-        return decoded
 
     @staticmethod
     def _compute_checksum(buffer):

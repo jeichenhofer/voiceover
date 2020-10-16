@@ -17,6 +17,7 @@ class Wavinator:
             self._frame_len = 2
             self._bits = 96
         else:
+            # ensure frame size pairs (i, i+1) where i is odd have same number of encoded bits
             self._frame_len = frame_len
             if frame_len % 2 == 0:
                 self._bits = 96 + (24 * ((frame_len - 1) // 2))
@@ -54,9 +55,6 @@ class Wavinator:
     def dewavinate(self, rx_wave: np.ndarray):
         coded = self._modem.demodulate(rx_wave)
         return self._codec.decode(coded[:self._bits])
-
-    def dewavinate_dilated_signal(self, rx_wave: np.ndarray, num_symbols):
-        return self._modem.demodulate_dilated_signal(rx_wave, num_symbols)
 
     @staticmethod
     def truncate(rx_wave: np.ndarray, threshold):
