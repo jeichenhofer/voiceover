@@ -3,17 +3,13 @@ import numpy as np
 
 class Wavinator:
 
-    def __init__(self, f_sample=None, f_symbol=None, frame_len=None, redundancy_factor=None):
+    def __init__(self, f_carrier=None, frame_len=None, redundancy_factor=None):
         from Wavinator.ConvolutionCodec import ConvolutionCodec
         from Wavinator.IQModem import IQModem
 
         self._codec = ConvolutionCodec()
-        if f_sample is not None and f_symbol is not None:
-            self._modem = IQModem(f_sample=f_sample, f_symbol=f_symbol)
-        elif f_sample is not None and f_symbol is None:
-            self._modem = IQModem(f_sample=f_sample)
-        elif f_sample is None and f_symbol is not None:
-            self._modem = IQModem(f_symbol=f_symbol)
+        if f_carrier is not None:
+            self._modem = IQModem(f_carrier=f_carrier)
         else:
             self._modem = IQModem()
 

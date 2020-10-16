@@ -12,8 +12,6 @@ class IQModem:
         :param f_carrier: carrier frequency for the signal
         :param f_sample: sample rate for DAC/ADC
         """
-        from Wavinator.ConvolutionCodec import ConvolutionCodec
-        self._codec = ConvolutionCodec()
         # instantiate the QAM map for 4QPSK
         from commpy import modulation as mod
         self._modem = mod.PSKModem(const_size)
@@ -130,70 +128,6 @@ class IQModem:
         if len(bits) % 24 != 0:
             bits = bits[:(len(bits) // 24) * 24]
         logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
-        return bits
-
-    def demodulate_dilated_signal(self, rx_wave: np.ndarray, num_symbols) -> np.ndarray:
-        windowsize = num_symbols * self._upsmple_factor
-        expected_freq = 1000
-        error = 100
-        length_size = 2
-        message = np.array([], dtype=np.int)
-
-        # divide signal into windows and calculated the fft for each window
-        for i in range(0, len(rx_wave), windowsize):
-            window = rx_wave[i:i+windowsize]
-            y = np.fft.fft(window)
-            freqs = np.fft.fftfreq(windowsize)
-            peak = np.argmax(y)  # find index of peak
-            freq = freqs[peak]
-            freq_hz = abs(freq * self._f_sample)
-            baud = 128
-
-            # brute forcing baud rate loop
-            data_rx = None
-            while data_rx is None:
-                data_rx = self.demodulate_segment(window)
-                if freq_hz < expected_freq - error:
-                    baud -= 1
-                elif freq_hz > expected_freq + error:
-                    baud += 1
-                self.__init__(f_carrier=freq_hz, f_symbol=baud)
-                pass
-            bits = self._codec.decode_segment(data_rx)
-            message = np.concatenate([message, bits])
-
-        message = np.packbits(message, bitorder='big')
-        # truncate message-length tag
-        message_length = int.from_bytes(message[0:length_size], byteorder='big', signed=False)
-        if message_length > len(message) - length_size:
-            raise RuntimeError('Invalid message-length tag')
-        message = message[length_size:length_size+message_length]
-
-        return message
-
-    def demodulate_segment(self, segment: np.ndarray) -> np.ndarray:
-        # extract the quadrature components
-        rx_wave_t = np.arange(len(segment)) / self._f_sample
-        i_quad = segment * np.cos(self._w_carrier * rx_wave_t)
-        q_quad = segment * np.sin(self._w_carrier * rx_wave_t) * (-1)
-
-        # filter the quadrature signals
-        from scipy.signal import lfilter
-        i_quad = lfilter(self._lp_fir, 1, i_quad)
-        q_quad = lfilter(self._lp_fir, 1, q_quad)
-
-        # combine the signals back into complex quadrature representation
-        recovered = i_quad + 1.j * q_quad
-
-        # apply the second rrc filter for full raised cosine filter
-        recovered_signal = np.convolve(recovered, self._rrc_fir)
-
-        # discard prepended delay samples from filtering and sample remaining signal to recover original symbols
-        recovered_signal = recovered_signal[self._filter_delay_samples::int(self._upsmple_factor)]
-
-        # demodulate the symbols into bits modulating the signal
-        bits = self._modem.demodulate(recovered_signal, demod_type='hard')
-        logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(segment), len(bits)))
         return bits
 
     @property
