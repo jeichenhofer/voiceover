@@ -4,6 +4,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+import numpy as np
 import time
 import os
 from selenium.webdriver.common.action_chains import ActionChains
@@ -13,11 +14,11 @@ import sys
 
 # username and password
 CREDS = {
-	0: {
+	"c": {
 		"user": "voiceoverclient@outlook.com",
 		"pwd": "12345678@PU"
 	},
-	1: {
+	"s": {
 		"user": "voiceoverserver@outlook.com",
 		"pwd": "12345678@PU"
 	}
@@ -36,7 +37,9 @@ class VoiceoverAgent(object):
 	def init_browser(self):
 		options = webdriver.ChromeOptions()
 		options.add_argument(r"user-data-dir=%s" % self.chrome_path)
-		driver = webdriver.Chrome(chrome_options=options)
+		options.add_argument("--window-size=200,600")
+		driver = webdriver.Chrome(options=options)
+		driver.set_window_position(0, 0)
 		return driver
 
 	def close(self):
@@ -45,6 +48,7 @@ class VoiceoverAgent(object):
 	def login(self):
 		self.driver.get("https://web.skype.com/")
 		time.sleep(5)
+		print ("Login")
 		if self.driver.current_url.startswith("https://login.live.com/"):
 			print ("Input user name")
 			elem = self.driver.find_element_by_name("loginfmt")
@@ -84,6 +88,7 @@ class VoiceoverAgent(object):
 		
 
 	def join_meeting_by_url(self, URL):
+		print ("Join meeting")
 		self.driver.get(URL)
 		time.sleep(5)
 		if self.driver.current_url.startswith("https://join.skype.com/"):
@@ -104,8 +109,11 @@ class VoiceoverAgent(object):
 				self.driver.find_element_by_xpath('//*[@aria-label="Microphone"]').click()
 				time.sleep(1)
 			except:
-				self.driver.find_element_by_xpath('//*[@aria-label="Microphone, Off"]').click()
-			
+				try:
+					self.driver.find_element_by_xpath('//*[@aria-label="Microphone, Off"]').click()
+				except Exception as e:
+					# print (str(e))
+					pass
 			time.sleep(1)
 
 			try:
@@ -122,26 +130,27 @@ class VoiceoverAgent(object):
 
 
 if __name__ == '__main__':
-	help_str = """ Usage: python agent.py [peer_id] [operation] [url]
-	peer_id [0, 1]: 0 -> client 1 -> server
-	operation [0, 1, 2]: 0 -> create a meeting, 1 -> join a meeting and play audio, 2 -> join a meeting and record
-	url: the meeting url. required if operation is 1 or 2 
-	"""
-	print (help_str)
-	peer_id = int(sys.argv[1]) #0 client, 1 server
-	op = int(sys.argv[2]) # 0 create a meeting, 1 join and play, 2 join and record
+	import argparse
 
-	assert peer_id in (0, 1)
-	assert op in (0, 1, 2)
+	parser = argparse.ArgumentParser()
 
-	if op != 0:
-		url = sys.argv[3]
+	parser.add_argument('-t', choices=['c', 's'], help='Specify agent type: client (c) or server(s)')
+	parser.add_argument('-a', choices=['create', 'play', 'record'], help='Specify action')
+	parser.add_argument('-u', help='Meeting URL')
+	parser.add_argument('-f', help='Audio file')
+
+
+	args = parser.parse_args(sys.argv[1:])
+	peer_id = args.t
+	op = args.a
+	url = args.u
+	fin = args.f
 	
 	audioctr.audio_cleanup()
 	agent = VoiceoverAgent(CREDS[peer_id]["user"], CREDS[peer_id]["pwd"], CHROMEPATH)
 	agent.login()
 
-	if op == 0:
+	if op == "create":
 		
 		url = agent.create_meeting()
 	else:
@@ -152,18 +161,18 @@ if __name__ == '__main__':
 		# wait for initializing audio input/output
 		time.sleep(5) 
 	
-
+		print ("Set up audio channels")
 		# redirect input/output of chrome, wait for finishing setup
 		audioctr.audio_setup()
 		time.sleep(5)
 
-		if op == 1:
+		if op == "play":
 			# may need this:
 			# audioctr.player_setup("ALSA plug-in")
 			print ("Play")
 			trans.play_wav()
 
-		if op == 2:
+		if op == "record":
 			# redirect input of the recording app
 			audioctr.recorder_setup("ALSA plug-in")
 			time.sleep(5)
