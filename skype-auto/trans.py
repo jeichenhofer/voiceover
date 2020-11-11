@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-"""Load an audio file into memory and play its contents.
-
-NumPy and the soundfile module (https://PySoundFile.readthedocs.io/)
-must be installed for this to work.
-
-This example program loads the whole file into memory before starting
-playback.
-To play very long files, you should use play_long_file.py instead.
-
-"""
 import argparse
 import tempfile
 import queue
@@ -18,13 +7,14 @@ import sounddevice as sd
 import soundfile as sf
 import numpy  # Make sure NumPy is loaded before it is used in the callback
 assert numpy  # avoid "imported but unused" message (W0611)
-
+import time
+from datetime import datetime as dt
 
 def record_wav():
     q = queue.Queue()
-    filename = "output.wav"
-    if os.path.exists(filename): os.remove(filename)
-    samplerate = 48000
+    filename_base = "output.wav"
+    # if os.path.exists(filename): os.remove(filename)
+    samplerate = 8000
     channels = 1
     subtype = None
     device = None
@@ -37,26 +27,56 @@ def record_wav():
         q.put(indata.copy())
 
 
-    try:
-        with sf.SoundFile(filename, mode='x', samplerate=samplerate,
-                          channels=channels, subtype=subtype) as file:
+    target_fs = [v.split(",")[0] for v in open("msg_list.csv").readlines()]
+    target_fs = ["test1.wav", "test2.wav"]
+    while True:
+        try:
+            timestamp = dt.utcnow().isoformat().replace(':', '-')
+            filename = "result/%s" % (target_fs[0])
+            target_fs = target_fs[1:]
+            file = sf.SoundFile(filename, mode='x', samplerate=samplerate,
+                          channels=channels, subtype=subtype)
             with sd.InputStream(samplerate=samplerate, device=device,
                                 channels=channels, callback=callback):
                 print('#' * 80)
-                print('press Ctrl+C to stop the recording')
-                print('#' * 80)
+                print ("Wait for signals...")
+                # print('press Ctrl+C to stop the recording')
+                # print('#' * 80)
+                is_st = 0
+                end_cnt = 0
                 while True:
-                    file.write(q.get())
-    except KeyboardInterrupt:
-        print('\nRecording finished: ' + repr(filename))
-        # exit(0)
-    except Exception as e:
-        exit(type(e).__name__ + ': ' + str(e))
+                    t = q.get()
+                    c = numpy.count_nonzero(t)
+                    if is_st == 0:
+                        if c != 0:
+                            print ("A client joins the meeting")
+                            print ("Start recording...")
+                            file.write(t)
+                            is_st = 1
+                    else:
+                        file.write(t)
+                        if end_cnt == 2500:
+                            print ("Prepare for save, 50%")
+                        if end_cnt == 3000:
+                            print ("Prepare for save, 100%")
+                        if c == 0:
+                            end_cnt += 1
+                            if end_cnt > 3000:
+                                print ("Save to %s, wait for next messsage" % filename)
+                                file.close()
+                                break
+                        else:
+                            end_cnt = 0
 
 
+        except KeyboardInterrupt:
+            print ("Exit...")
+            # print('\nRecording finished: ' + repr(filename))
+            exit(0)
+        except Exception as e:
+            exit(type(e).__name__ + ': ' + str(e))
 
-def play_wav():
-    filename = "input.wav"
+def play_wav(filename):
     device = None
     try:
         data, fs = sf.read(filename, dtype='float32')
@@ -68,6 +88,6 @@ def play_wav():
         print (type(e).__name__ + ': ' + str(e))
     if status:
         print ('Error during playback: ' + str(status))
-
+        
 if __name__ == '__main__':
     play_wav()
