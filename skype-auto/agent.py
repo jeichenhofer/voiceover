@@ -27,7 +27,7 @@ CREDS = {
 	}
 }
 
-CHROMEPATH = "/home/parallels/.config/google-chrome"
+CHROMEPATH = "/home/voiceover/.config/google-chrome"
 
 class VoiceoverAgent(object):
 	"""docstring for VoiceoverAgent"""
@@ -160,8 +160,8 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('-t', choices=['c', 's'], help='Specify agent type: client (c) or server(s)')
-	parser.add_argument('-a', choices=['create', 'play', 'record'], help='Specify action')
+	parser.add_argument('-t', choices=['c', 's'], required=True, help='Specify agent type: client (c) or server(s)')
+	parser.add_argument('-a', choices=['create', 'play', 'record'], required=True, help='Specify action')
 	parser.add_argument('-u', help='Meeting URL')
 	parser.add_argument('-f', help='Audio file')
 
