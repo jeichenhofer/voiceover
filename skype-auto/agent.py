@@ -4,13 +4,16 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-import numpy as np
+from selenium.webdriver.firefox.firefox_binary import FirefoxBinary
 import time
 import os
 from selenium.webdriver.common.action_chains import ActionChains
 import trans
 import audioctr
 import sys
+
+
+
 
 # username and password
 CREDS = {
@@ -28,20 +31,41 @@ CHROMEPATH = "/home/parallels/.config/google-chrome"
 
 class VoiceoverAgent(object):
 	"""docstring for VoiceoverAgent"""
-	def __init__(self, user, pwd, chrome_path):
+	def __init__(self, user, pwd, chrome_path, headless):
 		self.user = user
 		self.pwd = pwd
 		self.chrome_path = chrome_path
+		self.isheadless = headless # headless=true is not working
 		self.driver = self.init_browser()
-		
+
+
 	def init_browser(self):
 		options = webdriver.ChromeOptions()
 		options.add_argument(r"user-data-dir=%s" % self.chrome_path)
-		options.add_argument("--window-size=200,600")
+		# options.add_argument("--window-size=500,500")
+		if self.isheadless:
+			options.add_argument('--headless')
+			options.add_argument("--start-maximized")
+			options.add_argument("--window-size=800,600")
+			# options.add_argument("--proxy-server='direct://'");
+			# options.add_argument("--proxy-bypass-list=*");
+			options.add_argument("--disable-gpu")
+			options.add_argument("--ignore-certificate-errors")
+			options.add_argument("--no-sandbox")
+		# options.add_argument('--no-sandbox')
+		# options.add_argument("--disable-setuid-sandbox")
 		driver = webdriver.Chrome(options=options)
 		driver.set_window_position(0, 0)
 		return driver
 
+	def init_browser_fx(self):
+		profile = webdriver.FirefoxProfile('/home/parallels/.mozilla/firefox/nuznwaor.default')
+		profile.DEFAULT_PREFERENCES['frozen']['extensions.autoDisableScopes'] = 0
+		profile.set_preference('extensions.enabledScopes', 15)
+		driver = webdriver.Firefox(firefox_profile=profile)
+		return driver
+
+	
 	def close(self):
 		self.driver.close()
 
@@ -105,6 +129,7 @@ class VoiceoverAgent(object):
 			
 			print ("Turn on microphone")
 			time.sleep(5)
+			
 			try:
 				self.driver.find_element_by_xpath('//*[@aria-label="Microphone"]').click()
 				time.sleep(1)
@@ -112,8 +137,8 @@ class VoiceoverAgent(object):
 				try:
 					self.driver.find_element_by_xpath('//*[@aria-label="Microphone, Off"]').click()
 				except Exception as e:
-					# print (str(e))
 					pass
+					# print (str(e))
 			time.sleep(1)
 
 			try:
@@ -130,6 +155,7 @@ class VoiceoverAgent(object):
 
 
 if __name__ == '__main__':
+
 	import argparse
 
 	parser = argparse.ArgumentParser()
@@ -139,15 +165,16 @@ if __name__ == '__main__':
 	parser.add_argument('-u', help='Meeting URL')
 	parser.add_argument('-f', help='Audio file')
 
-
 	args = parser.parse_args(sys.argv[1:])
 	peer_id = args.t
 	op = args.a
 	url = args.u
 	fin = args.f
+	# print (args)
 	
+	# disp = Display().start()
 	audioctr.audio_cleanup()
-	agent = VoiceoverAgent(CREDS[peer_id]["user"], CREDS[peer_id]["pwd"], CHROMEPATH)
+	agent = VoiceoverAgent(CREDS[peer_id]["user"], CREDS[peer_id]["pwd"], CHROMEPATH, headless=False)
 	agent.login()
 
 	if op == "create":
@@ -169,8 +196,14 @@ if __name__ == '__main__':
 		if op == "play":
 			# may need this:
 			# audioctr.player_setup("ALSA plug-in")
-			print ("Play")
-			trans.play_wav()
+
+			target_fs = [v.split(",")[0] for v in open("msg_list.csv").readlines()]
+			target_fs = ["test.wav"]
+			for fin in target_fs:
+				print (fin)
+				time.sleep(1)
+				trans.play_wav(fin)
+				time.sleep(30)
 
 		if op == "record":
 			# redirect input of the recording app
@@ -184,3 +217,5 @@ if __name__ == '__main__':
 
 	print ("Exit...")
 	agent.close()
+	# vdisplay.stop()
+	# disp.stop()
