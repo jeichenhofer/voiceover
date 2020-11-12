@@ -9,3 +9,4 @@
 
 4. Initialization: Open Chrome and login web.skype.com and create a meeting, with the credentials in agent.py
 
+5. Python agent.py -h
