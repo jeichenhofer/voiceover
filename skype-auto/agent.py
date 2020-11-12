@@ -192,14 +192,14 @@ if __name__ == '__main__':
 		# redirect input/output of chrome, wait for finishing setup
 		audioctr.audio_setup()
 		time.sleep(5)
-
-		if op == "play":
-			# may need this:
-			# audioctr.player_setup("ALSA plug-in")
-			if fin.endswith(".csv"):
+		
+		if fin.endswith(".csv"):
 				target_fs = [v.split(",")[0] for v in open(fin).readlines()]
 			else:
 				target_fs = [fin]
+		if op == "play":
+			# may need this:
+			# audioctr.player_setup("ALSA plug-in")
 			for fs in target_fs:
 				print (fs)
 				time.sleep(1)
@@ -212,7 +212,7 @@ if __name__ == '__main__':
 			time.sleep(5)
 
 			print ("Record")
-			trans.record_wav()
+			trans.record_wav(target_fs)
 
 		audioctr.audio_cleanup()
 
