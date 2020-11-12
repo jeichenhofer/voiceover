@@ -31,8 +31,11 @@ def record_wav(target_fs):
     while True:
         try:
             timestamp = dt.utcnow().isoformat().replace(':', '-')
-            filename = "%s/%s" % (output_dir, target_fs[0])
-            target_fs = target_fs[1:]
+            if len(target_fs) >= 1:
+                filename = "%s/%s" % (output_dir, target_fs[0])
+                target_fs = target_fs[1:]
+            else:
+                filename = "%s/%s" % (output_dir, "tmp.wav")
             fp = sf.SoundFile(filename, mode='x', samplerate=samplerate,
                           channels=channels, subtype=subtype)
             with sd.InputStream(samplerate=samplerate, device=device,
