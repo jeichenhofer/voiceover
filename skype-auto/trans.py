@@ -10,31 +10,30 @@ assert numpy  # avoid "imported but unused" message (W0611)
 import time
 from datetime import datetime as dt
 
-def record_wav():
+def record_wav(target_fs):
     q = queue.Queue()
-    filename_base = "output.wav"
     # if os.path.exists(filename): os.remove(filename)
     samplerate = 8000
     channels = 1
     subtype = None
     device = None
-
+    output_dir = "result"
 
     def callback(indata, frames, time, status):
         """This is called (from a separate thread) for each audio block."""
         if status:
             print(status, file=sys.stderr)
         q.put(indata.copy())
-
-
-    target_fs = [v.split(",")[0] for v in open("msg_list.csv").readlines()]
-    target_fs = ["test1.wav", "test2.wav"]
+        
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
     while True:
         try:
             timestamp = dt.utcnow().isoformat().replace(':', '-')
-            filename = "result/%s" % (target_fs[0])
+            filename = "%s/%s" % (output_dir, target_fs[0])
             target_fs = target_fs[1:]
-            file = sf.SoundFile(filename, mode='x', samplerate=samplerate,
+            fp = sf.SoundFile(filename, mode='x', samplerate=samplerate,
                           channels=channels, subtype=subtype)
             with sd.InputStream(samplerate=samplerate, device=device,
                                 channels=channels, callback=callback):
@@ -51,10 +50,10 @@ def record_wav():
                         if c != 0:
                             print ("A client joins the meeting")
                             print ("Start recording...")
-                            file.write(t)
+                            fp.write(t)
                             is_st = 1
                     else:
-                        file.write(t)
+                        fp.write(t)
                         if end_cnt == 2500:
                             print ("Prepare for save, 50%")
                         if end_cnt == 3000:
@@ -63,7 +62,7 @@ def record_wav():
                             end_cnt += 1
                             if end_cnt > 3000:
                                 print ("Save to %s, wait for next messsage" % filename)
-                                file.close()
+                                fp.close()
                                 break
                         else:
                             end_cnt = 0
