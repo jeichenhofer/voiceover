@@ -194,9 +194,9 @@ if __name__ == '__main__':
 		time.sleep(5)
 		
 		if fin.endswith(".csv"):
-				target_fs = [v.split(",")[0] for v in open(fin).readlines()]
-			else:
-				target_fs = [fin]
+			target_fs = [v.split(",")[0] for v in open(fin).readlines()]
+		else:
+			target_fs = [fin]
 		if op == "play":
 			# may need this:
 			# audioctr.player_setup("ALSA plug-in")
