@@ -163,7 +163,7 @@ if __name__ == '__main__':
 	parser.add_argument('-t', choices=['c', 's'], required=True, help='Specify agent type: client (c) or server(s)')
 	parser.add_argument('-a', choices=['create', 'play', 'record'], required=True, help='Specify action')
 	parser.add_argument('-u', help='Meeting URL')
-	parser.add_argument('-f', help='An audio file or a list of audio files')
+	parser.add_argument('-f', help='An audio file or a list of audio files in a csv file (format: filepath,random)')
 
 	args = parser.parse_args(sys.argv[1:])
 	peer_id = args.t
