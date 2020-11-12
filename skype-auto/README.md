@@ -9,4 +9,4 @@
 
 4. Initialization: Open Chrome and login web.skype.com and create a meeting, with the credentials in agent.py
 
-5. Python agent.py -h
+5. Run "python agent.py -h" to get help information. Run "python audioctr.py" to clean up all virtual channels
