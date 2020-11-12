@@ -200,10 +200,10 @@ if __name__ == '__main__':
 		if op == "play":
 			# may need this:
 			# audioctr.player_setup("ALSA plug-in")
-			for fs in target_fs:
-				print (fs)
+			for fn in target_fs:
+				print (fn)
 				time.sleep(1)
-				trans.play_wav(fs)
+				trans.play_wav(fn)
 				time.sleep(30)
 
 		if op == "record":
