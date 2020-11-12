@@ -163,7 +163,7 @@ if __name__ == '__main__':
 	parser.add_argument('-t', choices=['c', 's'], required=True, help='Specify agent type: client (c) or server(s)')
 	parser.add_argument('-a', choices=['create', 'play', 'record'], required=True, help='Specify action')
 	parser.add_argument('-u', help='Meeting URL')
-	parser.add_argument('-f', help='Audio file')
+	parser.add_argument('-f', help='An audio file or a list of audio files')
 
 	args = parser.parse_args(sys.argv[1:])
 	peer_id = args.t
@@ -196,13 +196,14 @@ if __name__ == '__main__':
 		if op == "play":
 			# may need this:
 			# audioctr.player_setup("ALSA plug-in")
-
-			target_fs = [v.split(",")[0] for v in open("msg_list.csv").readlines()]
-			target_fs = ["test.wav"]
-			for fin in target_fs:
-				print (fin)
+			if fin.endswith(".csv"):
+				target_fs = [v.split(",")[0] for v in open(fin).readlines()]
+			else:
+				target_fs = [fin]
+			for fs in target_fs:
+				print (fs)
 				time.sleep(1)
-				trans.play_wav(fin)
+				trans.play_wav(fs)
 				time.sleep(30)
 
 		if op == "record":
