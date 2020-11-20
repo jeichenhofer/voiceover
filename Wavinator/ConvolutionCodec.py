@@ -67,6 +67,7 @@ class ConvolutionCodec:
         )
         frame_buffer[:LENGTH_SIZE] = np.frombuffer(length_bytes, dtype=data_type)
 
+        # set frame number in buffer
         framenum_bytes = frame_number.to_bytes(NUM_SIZE, byteorder='big', signed=False)
         frame_buffer[LENGTH_SIZE:(LENGTH_SIZE + NUM_SIZE)] = np.frombuffer(framenum_bytes, dtype=data_type)
 
@@ -141,6 +142,4 @@ class ConvolutionCodec:
 
     @property
     def coding_rate(self):
-        return 0.7435  # i have no idea why this works...
-        # return self._trellis.k / (self._trellis.n * 0.895)  # i have no idea why this works...
-        # return self._trellis.k / self._trellis.n
+        return self._trellis.k / self._trellis.n

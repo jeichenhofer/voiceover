@@ -2,6 +2,8 @@ import numpy as np
 from Wavinator.Wavinator import Wavinator
 
 TOTAL_BYTES = 0
+BITS_PER_BYTE = 8
+HEADER_SIZE = 6
 
 
 def load_template(filename: str):
@@ -13,7 +15,9 @@ def gen_audio_segment(wave_gen: Wavinator, duration: int):
     import secrets
     global TOTAL_BYTES
 
-    num_bytes = int(round(wave_gen.bit_rate * duration / 8))
+    # This get bit_rate from CC.py
+    num_bytes = int(round(wave_gen.bit_rate * duration /
+                          (BITS_PER_BYTE * wave_gen.redundancy_factor * (1 + (HEADER_SIZE / wave_gen.frame_len)))))
     TOTAL_BYTES += num_bytes
     data_tx = secrets.token_bytes(num_bytes)
     return wave_gen.wavinate(data_tx)
