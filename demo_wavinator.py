@@ -11,7 +11,7 @@ if __name__ == '__main__':
     from Wavinator.Wavinator import Wavinator
     frame_len = 2
     redundancy_factor = 2
-    frame_samples = 3348
+    frame_samples = 2604
     waver = Wavinator(frame_len=frame_len, redundancy_factor=redundancy_factor)
 
     import wavio

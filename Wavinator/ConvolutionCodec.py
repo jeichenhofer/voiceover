@@ -2,7 +2,6 @@ import logging
 import numpy as np
 import commpy.channelcoding.convcode as cc
 
-LENGTH_SIZE = 2
 CHECKSUM_SIZE = 2
 NUM_SIZE = 2
 
@@ -49,8 +48,8 @@ class ConvolutionCodec:
         data_type = data_type.newbyteorder('>')
 
         # create frame buffer
-        frame_len = LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE + len(message)
-        message_start = LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE
+        frame_len = CHECKSUM_SIZE + NUM_SIZE + len(message)
+        message_start = CHECKSUM_SIZE + NUM_SIZE
         if frame_len % 2 != 0:
             frame_len += 1
             message_start += 1
@@ -59,24 +58,15 @@ class ConvolutionCodec:
         # set message
         frame_buffer[message_start:] = message
 
-        # prepend length to message
-        message_length = len(message)
-        length_bytes = np.frombuffer(
-            message_length.to_bytes(LENGTH_SIZE, byteorder='big', signed=False),
-            dtype=data_type
-        )
-        frame_buffer[:LENGTH_SIZE] = np.frombuffer(length_bytes, dtype=data_type)
-
         # set frame number in buffer
         framenum_bytes = frame_number.to_bytes(NUM_SIZE, byteorder='big', signed=False)
-        frame_buffer[LENGTH_SIZE:(LENGTH_SIZE + NUM_SIZE)] = np.frombuffer(framenum_bytes, dtype=data_type)
+        frame_buffer[:NUM_SIZE] = np.frombuffer(framenum_bytes, dtype=data_type)
 
         # compute checksum value
         checksum = self._compute_checksum(frame_buffer)
         # set checksum in buffer
-        checksum_bytes = checksum.to_bytes(LENGTH_SIZE, byteorder='big', signed=False)
-        frame_buffer[LENGTH_SIZE + NUM_SIZE:(LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE)] = np.frombuffer(checksum_bytes,
-                                                                                                      dtype=data_type)
+        checksum_bytes = checksum.to_bytes(CHECKSUM_SIZE, byteorder='big', signed=False)
+        frame_buffer[NUM_SIZE:(CHECKSUM_SIZE + NUM_SIZE)] = np.frombuffer(checksum_bytes, dtype=data_type)
 
         # convert bytes to bit array
         bits = np.unpackbits(frame_buffer, bitorder='big')
@@ -84,7 +74,7 @@ class ConvolutionCodec:
         # perform the convolution encoding
         encoded = cc.conv_encode(bits, self._trellis, termination='cont')
         logging.info('Encoded {}-byte message into {}-bit convolution coded parity message'.format(
-            message_length, len(encoded))
+            len(message), len(encoded))
         )
         return encoded
 
@@ -100,30 +90,24 @@ class ConvolutionCodec:
 
         # return the bytes from the decoded bits
         message = np.packbits(decoded, bitorder='big')
-        # detect message length and truncate
-        message_length = int.from_bytes(message[0:LENGTH_SIZE], byteorder='big', signed=False)
-        if message_length > len(message) - LENGTH_SIZE:
-            raise RuntimeError('Invalid message-length tag')
-        message_end = message_length + LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE
-        if message_length % 2 != 0:
-            message_end += 1
-        message = message[:message_end]
 
+        # validate checksum
         if self._compute_checksum(message) != 0:
             raise ValueError('message checksum invalid')
 
-        frame_num = int.from_bytes(message[LENGTH_SIZE:(LENGTH_SIZE + NUM_SIZE)], byteorder='big', signed=False)
+        # extract frame number
+        frame_num = int.from_bytes(message[:NUM_SIZE], byteorder='big', signed=False)
 
         # compute start of message
-        message_start = LENGTH_SIZE + CHECKSUM_SIZE + NUM_SIZE
-        if message_length % 2 != 0:
+        message_start = CHECKSUM_SIZE + NUM_SIZE
+        if len(message) % 2 != 0:
             message_start += 1
 
         # extract message bytes
         message = message[message_start:]
 
         logging.info('Decoded {} convolution coded parity bits into {}-byte message'.format(
-            len(encoded), message_length)
+            len(encoded), len(message))
         )
         return message, frame_num
 

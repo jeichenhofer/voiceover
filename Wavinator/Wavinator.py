@@ -15,14 +15,14 @@ class Wavinator:
 
         if frame_len is None:
             self._frame_len = 2
-            self._bits = 96
+            self._bits = 72
         else:
             # ensure frame size pairs (i, i+1) where i is odd have same number of encoded bits
             self._frame_len = frame_len
             if frame_len % 2 == 0:
-                self._bits = 96 + (24 * ((frame_len - 1) // 2))
+                self._bits = 72 + (24 * ((frame_len - 1) // 2))
             else:
-                self._bits = 96 + (24 * (frame_len // 2))
+                self._bits = 72 + (24 * (frame_len // 2))
 
         if redundancy_factor is None:
             self._redundancy_factor = 2
