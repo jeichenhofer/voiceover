@@ -54,7 +54,12 @@ class Wavinator:
 
     def dewavinate(self, rx_wave: np.ndarray):
         coded = self._modem.demodulate(rx_wave)
-        return self._codec.decode(coded[:self._bits])
+        frame, frame_num = self._codec.decode(coded[:self._bits])
+
+        if len(frame) == self._frame_len + 1:
+            frame = frame[1:]
+
+        return frame, frame_num
 
     def pad_message(self, message):
         padding_len = self._frame_len - (len(message) % self._frame_len)

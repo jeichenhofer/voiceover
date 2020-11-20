@@ -28,10 +28,6 @@ if __name__ == '__main__':
             recovered_bytes = np.array([], dtype=np.uint8)
             while len(signal_rx) > 0:
                 recovered_frame, frame_num = waver.dewavinate(signal_rx)
-
-                if len(recovered_frame) == frame_len + 1:
-                    recovered_frame = recovered_frame[1:]
-
                 recovered_bytes = np.concatenate([recovered_bytes, recovered_frame])
                 if frame_num % 2 != 0:
                     signal_rx = signal_rx[frame_samples*2:]
