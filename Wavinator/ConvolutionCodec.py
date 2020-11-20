@@ -97,11 +97,8 @@ class ConvolutionCodec:
 
         # extract frame number
         frame_num = int.from_bytes(message[:NUM_SIZE], byteorder='big', signed=False)
-
         # compute start of message
         message_start = CHECKSUM_SIZE + NUM_SIZE
-        if len(message) % 2 != 0:
-            message_start += 1
 
         # extract message bytes
         message = message[message_start:]
