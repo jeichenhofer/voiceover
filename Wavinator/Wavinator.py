@@ -56,6 +56,17 @@ class Wavinator:
         coded = self._modem.demodulate(rx_wave)
         return self._codec.decode(coded[:self._bits])
 
+    def pad_message(self, message):
+        padding_len = self._frame_len - (len(message) % self._frame_len)
+
+        for i in range(padding_len):
+            message += str(padding_len)
+        return message
+
+    def unpad_message(self, message):
+        padding_len = int(message[len(message) - 1])
+        return message[:len(message) - padding_len]
+
     @staticmethod
     def truncate(rx_wave: np.ndarray, threshold):
         # Remove any zeroes at front
@@ -67,9 +78,18 @@ class Wavinator:
         return rx_wave
 
     @property
+    # Hard coded value, need to figure out bits
     def bit_rate(self):
         return self._codec.coding_rate * self._modem.bitrate
 
     @property
     def sample_rate(self):
         return self._modem.sample_rate
+
+    @property
+    def redundancy_factor(self):
+        return self._redundancy_factor
+
+    @property
+    def frame_len(self):
+        return self._frame_len
