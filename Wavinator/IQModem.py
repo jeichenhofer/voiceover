@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-
+from scipy.signal import lfilter
 
 class IQModem:
     def __init__(self, const_size: int = 4, f_symbol: int = 128, f_sample: int = int(8e3), f_carrier: int = int(1e3)):
@@ -109,7 +109,6 @@ class IQModem:
         q_quad = rx_wave * np.sin(self._w_carrier * rx_wave_t) * (-1)
 
         # filter the quadrature signals
-        from scipy.signal import lfilter
         i_quad = lfilter(self._lp_fir, 1, i_quad)
         q_quad = lfilter(self._lp_fir, 1, q_quad)
 
@@ -124,10 +123,12 @@ class IQModem:
 
         # demodulate the symbols into bits modulating the signal
         bits = self._modem.demodulate(recovered_symbols, demod_type='hard')
+
         # truncate to nearest length that is a multiple of 24
         if len(bits) % 24 != 0:
             bits = bits[:(len(bits) // 24) * 24]
-        logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
+
+        #logging.info('Demodulated signal with {} samples to a {}-bit message'.format(len(rx_wave), len(bits)))
         return bits
 
     @property
