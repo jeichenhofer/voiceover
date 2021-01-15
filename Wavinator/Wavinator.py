@@ -53,9 +53,7 @@ class Wavinator:
         return self._modem.modulate(coded)
 
     def dewavinate(self, rx_wave: np.ndarray):
-        #st = time.time() * 1000
         coded = self._modem.demodulate(rx_wave)
-        #print(time.time() * 1000 - st)
         frame, frame_num = self._codec.decode(coded[:self._bits])
 
         if len(frame) == self._frame_len + 1:

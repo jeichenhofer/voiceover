@@ -3,7 +3,7 @@ from Wavinator.Wavinator import Wavinator
 
 TOTAL_BYTES = 0
 BITS_PER_BYTE = 8
-HEADER_SIZE = 6
+HEADER_SIZE = 4
 
 
 def load_template(filename: str):
