@@ -5,11 +5,12 @@ import multiprocessing
 REDUNDANCY_FACTOR = 2
 
 
+# decoding of each unique frame
 def decode_frame(waver, audio):
     recovered_frame = None
     frame_samples = waver.samples_per_frame
 
-    # brute force decode up to 2 frames worth of samples, accepting the first decoding
+    # brute force decode up to 2 frames worth of samples, accepting the first successful decoding
     for i in range(REDUNDANCY_FACTOR*frame_samples):
         try:
             recovered_frame, frame_num = waver.dewavinate(audio)
@@ -20,6 +21,7 @@ def decode_frame(waver, audio):
     return recovered_frame
 
 
+# parallelize decoding of each unique frame
 def parallel_decode(audio, debug=False):
     if debug:
         import logging
@@ -35,6 +37,7 @@ def parallel_decode(audio, debug=False):
 
     # parallelize decoding among all possible CPU cores
     pool = multiprocessing.Pool()
+    # split audio signal where we expect unique frames to be
     recovered_bytes = pool.starmap(decode_frame,
                                    [(waver, audio[i*(REDUNDANCY_FACTOR*frame_samples):]) for i in range(total_frames)])
     pool.close()
@@ -58,6 +61,7 @@ def parallel_decode(audio, debug=False):
 
 
 # demodulates according to which frame was demodulated (a duplicate vs original frame)
+# Note: assumes redundancy factor of 2 and correct checksums
 def fast_decode(audio, debug=False):
     if debug:
         import logging

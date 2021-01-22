@@ -2,8 +2,9 @@ import logging
 import numpy as np
 from scipy.signal import lfilter
 
+
 class IQModem:
-    def __init__(self, const_size: int = 4, f_symbol: int = 128, f_sample: int = int(8e3), f_carrier: int = int(1e3)):
+    def __init__(self, const_size: int = 4, f_symbol: int = 1599, f_sample: int = int(8e3), f_carrier: int = int(2e3)):
         """
         Initialize the audio component of a modulator/demodulator using IQ modulation of complex QAM symbols.
 
@@ -138,3 +139,7 @@ class IQModem:
     @property
     def sample_rate(self):
         return self._f_sample
+
+    @property
+    def samples_per_symbol(self):
+        return self._upsmple_factor
