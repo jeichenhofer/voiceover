@@ -1,5 +1,5 @@
 import numpy as np
-import time
+
 
 class Wavinator:
 
@@ -8,6 +8,7 @@ class Wavinator:
         from Wavinator.IQModem import IQModem
 
         self._codec = ConvolutionCodec()
+
         if f_carrier is not None:
             self._modem = IQModem(f_carrier=f_carrier)
         else:
@@ -28,6 +29,8 @@ class Wavinator:
             self._redundancy_factor = 2
         else:
             self._redundancy_factor = redundancy_factor
+
+        self._base_samples = 41
 
     def wavinate(self, message: bytes):
         frame_num = 1
@@ -98,3 +101,10 @@ class Wavinator:
     @property
     def frame_len(self):
         return self._frame_len
+
+    @property
+    def samples_per_frame(self):
+        if self._frame_len % 2 == 0:
+            return (self._base_samples + (12 * ((self._frame_len - 1) // 2))) * self._modem.samples_per_symbol
+        else:
+            return (self._base_samples + (12 * (self._frame_len // 2))) * self._modem.samples_per_symbol

@@ -2,22 +2,21 @@ import wavio
 import numpy as np
 import multiprocessing
 
-FRAME_SAMPLES = 328  # number of samples in a given frame
 REDUNDANCY_FACTOR = 2
 
 
 def decode_frame(waver, audio):
     recovered_frame = None
+    frame_samples = waver.samples_per_frame
 
     # brute force decode up to 2 frames worth of samples, accepting the first decoding
-    for i in range(REDUNDANCY_FACTOR*FRAME_SAMPLES):
+    for i in range(REDUNDANCY_FACTOR*frame_samples):
         try:
             recovered_frame, frame_num = waver.dewavinate(audio)
             break
         except ValueError:
             audio = audio[1:]
 
-    # place recovered values (if any) in the appropriate place in list
     return recovered_frame
 
 
@@ -31,13 +30,15 @@ def parallel_decode(audio, debug=False):
     audio = waver.truncate(audio, 20)
 
     # after truncation we expect this many possible unique frames
-    total_frames = len(audio) // (REDUNDANCY_FACTOR * FRAME_SAMPLES)
+    frame_samples = waver.samples_per_frame
+    total_frames = len(audio) // (REDUNDANCY_FACTOR * frame_samples)
 
     # parallelize decoding among all possible CPU cores
     pool = multiprocessing.Pool()
     recovered_bytes = pool.starmap(decode_frame,
-                                   [(waver, audio[i*(REDUNDANCY_FACTOR*FRAME_SAMPLES):]) for i in range(total_frames)])
+                                   [(waver, audio[i*(REDUNDANCY_FACTOR*frame_samples):]) for i in range(total_frames)])
     pool.close()
+    pool.join()
 
     # filter out None values
     recovered_bytes = list(filter(lambda x: x is not None, recovered_bytes))
@@ -67,6 +68,7 @@ def fast_decode(audio, debug=False):
     waver = Wavinator()
     audio = waver.truncate(audio, 20)
 
+    frame_samples = waver.samples_per_frame
     recovered_bytes = []
     recovered_frames = 0
 
@@ -81,9 +83,9 @@ def fast_decode(audio, debug=False):
 
             # if the frame we demodulated was a duplicate, only move by one frame
             if frame_num % 2 != 0:
-                audio = audio[2*FRAME_SAMPLES:]
+                audio = audio[2*frame_samples:]
             else:
-                audio = audio[FRAME_SAMPLES:]
+                audio = audio[frame_samples:]
 
         except ValueError:
             # failed to demodulate, brute force start of next frame
@@ -111,6 +113,7 @@ def slow_decode(audio, debug=False):
     waver = Wavinator()
     audio = waver.truncate(audio, 20)
 
+    frame_samples = waver.samples_per_frame
     recovered_bytes = []
     recovered_frames = []
     expected_frame = 1
@@ -131,7 +134,7 @@ def slow_decode(audio, debug=False):
 
                 recovered_bytes.append(recovered_frame)
 
-            audio = audio[FRAME_SAMPLES:]
+            audio = audio[frame_samples:]
         except (RuntimeError, ValueError):
             audio = audio[1:]
 
