@@ -78,6 +78,7 @@ class IQModem:
         """
         # map bits to QPSK symbols
         qam_symbols = self._modem.modulate(coded_bits)
+        print(len(qam_symbols))
 
         # upsample the qam symbols to a comb signal and apply pulse shaping rrc filter
         from scipy.signal import upfirdn
@@ -143,3 +144,7 @@ class IQModem:
     @property
     def samples_per_symbol(self):
         return self._upsmple_factor
+
+    @property
+    def rrf_fir_len(self):
+        return len(self._rrc_fir)

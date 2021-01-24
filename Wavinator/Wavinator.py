@@ -39,8 +39,10 @@ class Wavinator:
             self._redundancy_factor = redundancy_factor
 
         # number of samples per frame
-        # (not sure if this works for all baud+carrier frequency combos but it works for the default)
-        self._base_samples = 41
+        if self._frame_len % 2 == 0:
+            self._base_samples = 36 + (12 * ((self._frame_len - 1) // 2))
+        else:
+            self._base_samples = 36 + (12 * (self._frame_len // 2))
 
     def wavinate(self, message: bytes):
         # initialize frame number for frame number portion of header
@@ -121,8 +123,6 @@ class Wavinator:
 
     @property
     # Samples per frame
+    # calculation from https://github.com/scipy/scipy/blob/master/scipy/signal/_upfirdn_apply.pyx
     def samples_per_frame(self):
-        if self._frame_len % 2 == 0:
-            return (self._base_samples + (12 * ((self._frame_len - 1) // 2))) * self._modem.samples_per_symbol
-        else:
-            return (self._base_samples + (12 * (self._frame_len // 2))) * self._modem.samples_per_symbol
+        return ((self._base_samples - 1) * self._modem.samples_per_symbol) + self._modem.rrf_fir_len
