@@ -3,6 +3,32 @@ import numpy as np
 import multiprocessing
 
 REDUNDANCY_FACTOR = 2
+DEBUG = True
+
+
+if DEBUG:
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+
+
+# convert bytes to message
+def bytes_to_message(waver, recovered_bytes):
+
+    # convert bytes to message
+    recovered_bytes = np.concatenate(recovered_bytes, axis=0)
+
+    # Handles case where message is split such that we can't have uniform sized frames
+    # Note: assumes that we cannot have 0x00 as part of message
+    # Other solution would be to bring back variable-length frames
+    recovered_bytes = recovered_bytes[recovered_bytes != 0]
+
+    recovered_bytes = recovered_bytes.tobytes().decode("utf-8", "replace")
+    try:
+        recovered_message = waver.unpad_message(recovered_bytes)
+    except ValueError:
+        recovered_message = recovered_bytes
+
+    return recovered_message
 
 
 # decoding of each unique frame
@@ -22,14 +48,7 @@ def decode_frame(waver, audio):
 
 
 # parallelize decoding of each unique frame
-def parallel_decode(audio, debug=False):
-    if debug:
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
-
-    from Wavinator.Wavinator import Wavinator
-    waver = Wavinator()
-    audio = waver.truncate(audio, 20)
+def parallel_decode(waver, audio):
 
     # after truncation we expect this many possible unique frames
     frame_samples = waver.samples_per_frame
@@ -49,34 +68,20 @@ def parallel_decode(audio, debug=False):
     # calculate recovered frames
     num_frames = len(recovered_bytes)
 
-    # convert bytes to message
-    recovered_bytes = np.concatenate(recovered_bytes, axis=0)
-    recovered_bytes = recovered_bytes.tobytes().decode("utf-8", "replace")
-    try:
-        recovered_message = waver.unpad_message(recovered_bytes)
-    except ValueError:
-        recovered_message = recovered_bytes
+    recovered_message = bytes_to_message(waver, recovered_bytes)
 
     return recovered_message, num_frames
 
 
 # demodulates according to which frame was demodulated (a duplicate vs original frame)
 # Note: assumes redundancy factor of 2 and correct checksums
-def fast_decode(audio, debug=False):
-    if debug:
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
-
-    # truncate silence from beginning
-    from Wavinator.Wavinator import Wavinator
-    waver = Wavinator()
-    audio = waver.truncate(audio, 20)
+def linear_fast_decode(waver, audio):
 
     frame_samples = waver.samples_per_frame
     recovered_bytes = []
     recovered_frames = 0
 
-    while len(audio) > 0:
+    while len(audio) > waver.samples_per_frame - 1:
         try:
             # demodulate
             recovered_frame, frame_num = waver.dewavinate(audio)
@@ -95,38 +100,24 @@ def fast_decode(audio, debug=False):
             # failed to demodulate, brute force start of next frame
             audio = audio[1:]
 
-    # convert bytes to message
-    recovered_bytes = np.concatenate(recovered_bytes, axis=0)
-    recovered_bytes = recovered_bytes.tobytes().decode("utf-8", "replace")
-    try:
-        recovered_message = waver.unpad_message(recovered_bytes)
-    except ValueError:
-        recovered_message = recovered_bytes
+    recovered_message = bytes_to_message(waver, recovered_bytes)
 
     return recovered_message, recovered_frames
 
 
 # demodulates any frame, maximize frames recovered
-def slow_decode(audio, debug=False):
-    if debug:
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
-
-    # truncate silence from beginning
-    from Wavinator.Wavinator import Wavinator
-    waver = Wavinator()
-    audio = waver.truncate(audio, 20)
+def linear_slow_decode(waver, audio):
 
     frame_samples = waver.samples_per_frame
     recovered_bytes = []
-    recovered_frames = []
+    recovered_frames = 0
     expected_frame = 1
 
-    while len(audio) > 0:
+    while len(audio) > waver.samples_per_frame - 1:
         try:
             # demodulate
             recovered_frame, frame_num = waver.dewavinate(audio)
-            recovered_frames.append(frame_num)
+            recovered_frames += 1
 
             if frame_num != expected_frame - 1:
                 # even frame is a duplicate frame
@@ -139,13 +130,10 @@ def slow_decode(audio, debug=False):
                 recovered_bytes.append(recovered_frame)
 
             audio = audio[frame_samples:]
-        except (RuntimeError, ValueError):
+        except ValueError:
             audio = audio[1:]
 
-    # convert bytes to message
-    recovered_bytes = np.concatenate(recovered_bytes, axis=0)
-    recovered_bytes = recovered_bytes.tobytes().decode("utf-8", "replace")
-    recovered_message = waver.unpad_message(recovered_bytes)
+    recovered_message = bytes_to_message(waver, recovered_bytes)
 
     return recovered_message, recovered_frames
 
@@ -156,8 +144,13 @@ if __name__ == '__main__':
     audio_signal = wavio.read(file)
     audio_signal = audio_signal.data.reshape((audio_signal.data.shape[0], ))
 
+    from Wavinator.Wavinator import Wavinator
+    frame_len = 2
+    wavinator = Wavinator(frame_len=frame_len)
+    audio_signal = wavinator.truncate(audio_signal, 20)
+
     # decode audio signal
-    message, frames_recovered = parallel_decode(audio_signal)
+    message, frames_recovered = parallel_decode(wavinator, audio_signal)
 
     # print message and stats
     print("Demodulated (received) data: " + message)
